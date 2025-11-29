@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+backtest_trades.csv
+trades_*.csv
+performance_*.html
+performance_*.png
