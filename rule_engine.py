@@ -124,6 +124,70 @@ class IndicatorEngine:
             return False
         return cur >= mult * avg
 
+    @staticmethod
+    def donchian_high(ohlc: List[Dict[str, Any]], period: int = 20) -> float:
+        if not ohlc: return 0.0
+        highs = [c['high'] for c in ohlc[-period:]]
+        return max(highs) if highs else 0.0
+
+    @staticmethod
+    def donchian_low(ohlc: List[Dict[str, Any]], period: int = 20) -> float:
+        if not ohlc: return 0.0
+        lows = [c['low'] for c in ohlc[-period:]]
+        return min(lows) if lows else 0.0
+
+    @staticmethod
+    def donchian_mid(ohlc: List[Dict[str, Any]], period: int = 20) -> float:
+        h = IndicatorEngine.donchian_high(ohlc, period)
+        l = IndicatorEngine.donchian_low(ohlc, period)
+        return (h + l) / 2.0
+
+    @staticmethod
+    def bollinger_upper(ohlc: List[Dict[str, Any]], period: int = 20, std_dev: float = 2.0) -> float:
+        closes = [c['close'] for c in ohlc[-period:]]
+        if not closes: return 0.0
+        avg = sum(closes) / len(closes)
+        variance = sum([(x - avg) ** 2 for x in closes]) / len(closes)
+        sd = math.sqrt(variance)
+        return avg + std_dev * sd
+
+    @staticmethod
+    def bollinger_lower(ohlc: List[Dict[str, Any]], period: int = 20, std_dev: float = 2.0) -> float:
+        closes = [c['close'] for c in ohlc[-period:]]
+        if not closes: return 0.0
+        avg = sum(closes) / len(closes)
+        variance = sum([(x - avg) ** 2 for x in closes]) / len(closes)
+        sd = math.sqrt(variance)
+        return avg - std_dev * sd
+
+    @staticmethod
+    def bollinger_mid(ohlc: List[Dict[str, Any]], period: int = 20) -> float:
+        closes = [c['close'] for c in ohlc[-period:]]
+        if not closes: return 0.0
+        return sum(closes) / len(closes)
+
+    @staticmethod
+    def keltner_upper(ohlc: List[Dict[str, Any]], period: int = 20, mult: float = 2.0) -> float:
+        # EMA + ATR * mult
+        closes = [c['close'] for c in ohlc]
+        ema_val = IndicatorEngine.ema(closes[-(period*3):], period)
+        atr_val = IndicatorEngine.atr(ohlc, period)
+        if ema_val is None: return 0.0
+        return ema_val + atr_val * mult
+
+    @staticmethod
+    def keltner_lower(ohlc: List[Dict[str, Any]], period: int = 20, mult: float = 2.0) -> float:
+        closes = [c['close'] for c in ohlc]
+        ema_val = IndicatorEngine.ema(closes[-(period*3):], period)
+        atr_val = IndicatorEngine.atr(ohlc, period)
+        if ema_val is None: return 0.0
+        return ema_val - atr_val * mult
+
+    @staticmethod
+    def keltner_mid(ohlc: List[Dict[str, Any]], period: int = 20) -> float:
+        closes = [c['close'] for c in ohlc]
+        return IndicatorEngine.ema(closes[-(period*3):], period) or 0.0
+
 # ---- Pattern Engine (candlestick patterns) ----
 class PatternEngine:
     """
@@ -241,69 +305,101 @@ class RuleEngine:
         if 'indicator' in leaf:
             left_key = leaf['indicator']
             left_val = None
-            # prefer precomputed indicators dict
+            
+            # 1. Prefer precomputed indicators dict
             if market_context.get('indicators') and left_key in market_context['indicators']:
                 left_val = market_context['indicators'][left_key]
             else:
-                # support few built-ins by name
-                if left_key == 'close':
-                    left_val = market_context.get('ohlcv_recent', [])[-1]['close'] if market_context.get('ohlcv_recent') else None
-                elif left_key == 'open':
-                    left_val = market_context.get('ohlcv_recent', [])[-1]['open'] if market_context.get('ohlcv_recent') else None
-                elif left_key == 'high':
-                    left_val = market_context.get('ohlcv_recent', [])[-1]['high'] if market_context.get('ohlcv_recent') else None
-                elif left_key == 'low':
-                    left_val = market_context.get('ohlcv_recent', [])[-1]['low'] if market_context.get('ohlcv_recent') else None
-                elif left_key == 'volume':
-                    left_val = market_context.get('ohlcv_recent', [])[-1]['volume'] if market_context.get('ohlcv_recent') else None
-                elif left_key == 'vwap':
-                    # compute session VWAP if provided candles
-                    left_val = self.ind.vwap(market_context.get('ohlcv_for_vwap', market_context.get('ohlcv_recent', [])))
-                elif left_key == 'rvol':
-                    left_val = self.ind.rvol(market_context.get('ohlcv_recent', []), lookback=leaf.get('lookback', 20))
-                elif left_key.startswith('ema'):
-                    # emaN: parse N
+                # 2. Dynamic dispatch to IndicatorEngine
+                # Parse name and arguments if needed (e.g. "ema(14)" or just "ema" with params in leaf)
+                method_name = left_key.split('(')[0]
+                
+                # Check if method exists in IndicatorEngine
+                if hasattr(self.ind, method_name):
+                    method = getattr(self.ind, method_name)
+                    # Prepare arguments
+                    # We pass 'ohlc' (list of dicts) as first arg
+                    ohlc = market_context.get('ohlcv_recent', [])
+                    
+                    # Collect kwargs from leaf (excluding 'indicator', 'condition', 'value')
+                    kwargs = {k: v for k, v in leaf.items() if k not in ['indicator', 'condition', 'value']}
+                    
+                    # Special handling for 'ema' which might be called as 'ema9'
+                    if method_name.startswith('ema') and method_name != 'ema':
+                         # It's likely 'ema9' mapped to 'ema' method? No, existing logic handles 'ema9' manually.
+                         # Let's keep manual handling for legacy 'emaN' strings if dynamic fails
+                         pass
+
                     try:
-                        n = int(left_key.replace('ema',''))
-                        series = [c['close'] for c in market_context.get('ohlcv_recent',[])]
-                        left_val = self.ind.ema(series[-(n*3):] if series else series, n)  # small window fallback
-                    except Exception:
+                        left_val = method(ohlc, **kwargs)
+                    except Exception as e:
+                        # print(f"Error calling {method_name}: {e}")
                         left_val = None
-                elif left_key == 'atr':
-                    left_val = self.ind.atr(market_context.get('ohlcv_recent',[]), period=leaf.get('period',14))
-                elif left_key == 'volume_spike':
-                    left_val = self.ind.volume_spike(market_context.get('ohlcv_recent',[]), window=leaf.get('window',20), mult=leaf.get('mult',1.5))
-                else:
-                    # fallback to indicators dict if present
-                    left_val = market_context.get('indicators', {}).get(left_key)
+                
+                # 3. Fallback to legacy hardcoded logic if dynamic dispatch didn't return (or method not found)
+                if left_val is None:
+                    if left_key == 'close':
+                        left_val = market_context.get('ohlcv_recent', [])[-1]['close'] if market_context.get('ohlcv_recent') else None
+                    elif left_key == 'open':
+                        left_val = market_context.get('ohlcv_recent', [])[-1]['open'] if market_context.get('ohlcv_recent') else None
+                    elif left_key == 'high':
+                        left_val = market_context.get('ohlcv_recent', [])[-1]['high'] if market_context.get('ohlcv_recent') else None
+                    elif left_key == 'low':
+                        left_val = market_context.get('ohlcv_recent', [])[-1]['low'] if market_context.get('ohlcv_recent') else None
+                    elif left_key == 'volume':
+                        left_val = market_context.get('ohlcv_recent', [])[-1]['volume'] if market_context.get('ohlcv_recent') else None
+                    elif left_key == 'vwap':
+                        left_val = self.ind.vwap(market_context.get('ohlcv_for_vwap', market_context.get('ohlcv_recent', [])))
+                    elif left_key == 'rvol':
+                        left_val = self.ind.rvol(market_context.get('ohlcv_recent', []), lookback=leaf.get('lookback', 20))
+                    elif left_key.startswith('ema'):
+                        try:
+                            n = int(left_key.replace('ema',''))
+                            series = [c['close'] for c in market_context.get('ohlcv_recent',[])]
+                            left_val = self.ind.ema(series[-(n*3):] if series else series, n)
+                        except Exception:
+                            left_val = None
+                    elif left_key == 'atr':
+                        left_val = self.ind.atr(market_context.get('ohlcv_recent',[]), period=leaf.get('period',14))
+                    elif left_key == 'volume_spike':
+                        left_val = self.ind.volume_spike(market_context.get('ohlcv_recent',[]), window=leaf.get('window',20), mult=leaf.get('mult',1.5))
+                    else:
+                        left_val = market_context.get('indicators', {}).get(left_key)
+
             # right side value
             value = leaf.get('value')
             right_val = None
             if isinstance(value, (int, float, bool)):
                 right_val = value
             elif isinstance(value, str):
-                # if string and references indicator name, fetch
-                if market_context.get('indicators') and value in market_context['indicators']:
-                    right_val = market_context['indicators'][value]
-                else:
-                    # support 'ema20' referenced as string
-                    if value.startswith('ema'):
-                        try:
-                            n = int(value.replace('ema',''))
-                            series = [c['close'] for c in market_context.get('ohlcv_recent',[])]
-                            right_val = self.ind.ema(series[-(n*3):] if series else series, n)
-                        except Exception:
-                            right_val = None
-                    elif value == 'vwap':
-                        right_val = self.ind.vwap(market_context.get('ohlcv_for_vwap', market_context.get('ohlcv_recent', [])))
-                    elif value == 'close':
-                        right_val = market_context.get('ohlcv_recent', [])[-1]['close'] if market_context.get('ohlcv_recent') else None
+                # Check dynamic dispatch for right side too
+                method_name_r = value.split('(')[0]
+                if hasattr(self.ind, method_name_r):
+                    try:
+                        right_val = getattr(self.ind, method_name_r)(market_context.get('ohlcv_recent', []))
+                    except:
+                        right_val = None
+                
+                if right_val is None:
+                    if market_context.get('indicators') and value in market_context['indicators']:
+                        right_val = market_context['indicators'][value]
                     else:
-                        # attempt numeric conversion
-                        try:
-                            right_val = float(value)
-                        except Exception:
-                            right_val = market_context.get('indicators', {}).get(value)
+                        if value.startswith('ema'):
+                            try:
+                                n = int(value.replace('ema',''))
+                                series = [c['close'] for c in market_context.get('ohlcv_recent',[])]
+                                right_val = self.ind.ema(series[-(n*3):] if series else series, n)
+                            except Exception:
+                                right_val = None
+                        elif value == 'vwap':
+                            right_val = self.ind.vwap(market_context.get('ohlcv_for_vwap', market_context.get('ohlcv_recent', [])))
+                        elif value == 'close':
+                            right_val = market_context.get('ohlcv_recent', [])[-1]['close'] if market_context.get('ohlcv_recent') else None
+                        else:
+                            try:
+                                right_val = float(value)
+                            except Exception:
+                                right_val = market_context.get('indicators', {}).get(value)
             else:
                 right_val = None
 

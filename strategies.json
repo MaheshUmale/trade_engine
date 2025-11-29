@@ -18,7 +18,7 @@
         {
           "indicator": "rvol",
           "condition": ">=",
-          "value": 2.0
+          "value": 2
         },
         {
           "operator": "OR",
@@ -159,6 +159,39 @@
           "indicator": "close",
           "condition": ">",
           "value": "ema9"
+        }
+      ]
+    }
+  },
+  {
+    "strategy_name": "9EMA_CONTINUATION",
+    "enabled": true,
+    "entry_direction": "LONG",
+    "timeframes": [
+      "1m"
+    ],
+    "logic": {
+      "operator": "AND",
+      "rules": [
+        {
+          "indicator": "close",
+          "condition": ">",
+          "value": "vwap"
+        },
+        {
+          "indicator": "close",
+          "condition": ">",
+          "value": "ema9"
+        },
+        {
+          "indicator": "ema9",
+          "condition": ">",
+          "value": "vwap"
+        },
+        {
+          "indicator": "volume_spike",
+          "condition": "==",
+          "value": "True"
         }
       ]
     }

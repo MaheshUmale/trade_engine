@@ -24,7 +24,7 @@ try:
 except ImportError:
     aioredis = None
 
-from mse import MarketStructureEngine  # <-- your existing MSE module
+from mse_enhanced import MarketStructureEngine  # <-- your existing MSE module
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 
