@@ -1,0 +1,11 @@
+numpy
+pandas
+streamlit
+redis
+pymongo
+matplotlib
+mplfinance
+motor
+pandas-ta
+scipy
+tvdatafeed
