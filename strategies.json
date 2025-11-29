@@ -1,0 +1,166 @@
+[
+  {
+    "strategy_name": "VWAP_Reclaim_Long",
+    "enabled": true,
+    "entry_direction": "LONG",
+    "timeframes": [
+      "1m",
+      "5m"
+    ],
+    "logic": {
+      "operator": "AND",
+      "rules": [
+        {
+          "indicator": "close",
+          "condition": ">",
+          "value": "vwap"
+        },
+        {
+          "indicator": "rvol",
+          "condition": ">=",
+          "value": 2.0
+        },
+        {
+          "operator": "OR",
+          "rules": [
+            {
+              "pattern": "bullish_engulfing"
+            },
+            {
+              "indicator": "volume_spike",
+              "condition": "==",
+              "value": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "strategy_name": "EMA_Stacked_Pullback_Long",
+    "enabled": true,
+    "entry_direction": "LONG",
+    "timeframes": [
+      "1m",
+      "5m"
+    ],
+    "logic": {
+      "operator": "AND",
+      "rules": [
+        {
+          "indicator": "ema9",
+          "condition": ">",
+          "value": "ema20"
+        },
+        {
+          "indicator": "close",
+          "condition": ">",
+          "value": "ema9"
+        },
+        {
+          "pattern": "pinbar"
+        }
+      ]
+    }
+  },
+  {
+    "strategy_name": "ORB_Long",
+    "enabled": true,
+    "entry_direction": "LONG",
+    "timeframes": [
+      "1m",
+      "5m"
+    ],
+    "logic": {
+      "operator": "AND",
+      "rules": [
+        {
+          "indicator": "time",
+          "condition": ">=",
+          "value": "09:20:00"
+        },
+        {
+          "indicator": "close",
+          "condition": ">",
+          "value": "orb_high"
+        },
+        {
+          "indicator": "volume_spike",
+          "condition": "==",
+          "value": true
+        },
+        {
+          "indicator": "rvol",
+          "condition": ">=",
+          "value": 1.5
+        }
+      ]
+    }
+  },
+  {
+    "strategy_name": "Breakout_Retest_Long",
+    "enabled": true,
+    "entry_direction": "LONG",
+    "logic": {
+      "operator": "AND",
+      "rules": [
+        {
+          "indicator": "close",
+          "condition": ">",
+          "value": "prev_swing_high"
+        },
+        {
+          "indicator": "pullback_depth",
+          "condition": "<=",
+          "value": 0.382
+        },
+        {
+          "pattern": "bullish_engulfing"
+        }
+      ]
+    }
+  },
+  {
+    "strategy_name": "RSI_Divergence_Long",
+    "enabled": true,
+    "entry_direction": "LONG",
+    "logic": {
+      "operator": "AND",
+      "rules": [
+        {
+          "indicator": "bullish_rsi_div",
+          "condition": "==",
+          "value": true
+        },
+        {
+          "indicator": "ema9",
+          "condition": ">",
+          "value": "ema20"
+        }
+      ]
+    }
+  },
+  {
+    "strategy_name": "Volume_Climax_Reversal",
+    "enabled": true,
+    "entry_direction": "LONG",
+    "logic": {
+      "operator": "AND",
+      "rules": [
+        {
+          "indicator": "climax_volume",
+          "condition": "==",
+          "value": true
+        },
+        {
+          "pattern": "pinbar"
+        },
+        {
+          "indicator": "close",
+          "condition": ">",
+          "value": "ema9"
+        }
+      ]
+    }
+  }
+]
